@@ -99,14 +99,13 @@ git tag v0.2.0 && git push origin v0.2.0
    | `NOTARY_TEAM_ID` | `P9U2E575US` |
    | `NOTARY_PASSWORD` | the app‑specific password from step 2 |
    | `SPARKLE_PRIVATE_KEY` | the Sparkle EdDSA private key (see below) |
-   | `SENTRY_AUTH_TOKEN` | *(optional)* token with `project:releases` to upload dSYMs |
+   | `SENTRY_AUTH_TOKEN` | *(optional)* token (org `kelso`, scope `project:releases`) to upload dSYMs |
+   | `SENTRY_ORG` | *(optional)* `kelso` — only used if `SENTRY_AUTH_TOKEN` is set |
+   | `SENTRY_PROJECT` | *(optional)* `amaranth-macos` — only used if `SENTRY_AUTH_TOKEN` is set |
 
-   **Repository variables** (*… → Variables*), only needed if you set `SENTRY_AUTH_TOKEN`:
-
-   | Variable | Value |
-   | --- | --- |
-   | `SENTRY_ORG` | your Sentry org slug |
-   | `SENTRY_PROJECT` | the Sentry project slug |
+   The Sentry upload is best-effort: if any of these are wrong, the build logs a
+   warning and still ships the release. (`SENTRY_ORG`/`SENTRY_PROJECT` must be the
+   slugs, not the numeric IDs from the DSN.)
 
 4. **Sparkle keys** — already generated for this repo. The public key is in
    `Info.plist` (`SUPublicEDKey`); the matching private key is in your login

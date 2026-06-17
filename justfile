@@ -126,16 +126,23 @@ package version: generate
 
     # --- Sentry: upload dSYMs + mark the release. Skipped unless a token is set,
     # so local builds without Sentry creds still work. Reads SENTRY_ORG /
-    # SENTRY_PROJECT / SENTRY_AUTH_TOKEN from the env (or ~/.sentryclirc). ---
+    # SENTRY_PROJECT / SENTRY_AUTH_TOKEN from the env (or ~/.sentryclirc).
+    # Best-effort: a Sentry failure warns but never blocks shipping the (already
+    # signed + notarized) release — dSYMs can always be re-uploaded later. ---
     if [ -n "${SENTRY_AUTH_TOKEN:-}" ]; then
       echo "==> Uploading dSYMs to Sentry…"
-      sentry-cli debug-files upload "{{archive_path}}/dSYMs"
       # Release name must match the SDK's auto value: {bundleID}@{short}+{build}.
       RELEASE="{{bundle_id}}@{{version}}+$GIT_BUILD"
-      sentry-cli releases new "$RELEASE"
-      sentry-cli releases set-commits "$RELEASE" --local --ignore-missing || true
-      sentry-cli releases finalize "$RELEASE"
-      echo "    Sentry release: $RELEASE"
+      if ( set -e
+        sentry-cli debug-files upload "{{archive_path}}/dSYMs"
+        sentry-cli releases new "$RELEASE"
+        sentry-cli releases set-commits "$RELEASE" --local --ignore-missing || true
+        sentry-cli releases finalize "$RELEASE"
+      ); then
+        echo "    Sentry release: $RELEASE"
+      else
+        echo "::warning::Sentry upload failed — check SENTRY_ORG/SENTRY_PROJECT/SENTRY_AUTH_TOKEN. Continuing."
+      fi
     else
       echo "==> Skipping Sentry upload (SENTRY_AUTH_TOKEN not set)"
     fi
