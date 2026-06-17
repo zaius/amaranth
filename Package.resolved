@@ -1,0 +1,23 @@
+{
+  "pins" : [
+    {
+      "identity" : "cryptoswift",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/krzyzanowskim/CryptoSwift",
+      "state" : {
+        "revision" : "132f5b209cd0251067f29cdb59c97d9f8a63252a",
+        "version" : "1.8.5"
+      }
+    },
+    {
+      "identity" : "ios-nrf-mesh-library",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/NordicSemiconductor/IOS-nRF-Mesh-Library",
+      "state" : {
+        "revision" : "ae3a3a4762b44a9b05ddee3ab2d0164dae073443",
+        "version" : "4.8.0"
+      }
+    }
+  ],
+  "version" : 2
+}
