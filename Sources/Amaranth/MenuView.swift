@@ -2,6 +2,7 @@ import SwiftUI
 
 struct MenuView: View {
     @EnvironmentObject private var controller: MeshController
+    @EnvironmentObject private var updater: Updater
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -39,6 +40,17 @@ struct MenuView: View {
                 .buttonStyle(.borderless)
                 .foregroundStyle(.secondary)
                 .help("Refresh state")
+
+                Button {
+                    updater.checkForUpdates()
+                } label: {
+                    Image(systemName: "arrow.down.circle")
+                        .font(.system(size: 11, weight: .semibold))
+                }
+                .buttonStyle(.borderless)
+                .foregroundStyle(.secondary)
+                .disabled(!updater.canCheckForUpdates)
+                .help("Check for updates")
 
                 Spacer()
 

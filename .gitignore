@@ -1,1 +1,6 @@
 .build/
+release/
+/Amaranth.xcodeproj/
+.DS_Store
+.env
+.claude/

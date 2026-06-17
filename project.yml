@@ -1,0 +1,78 @@
+name: Amaranth
+
+options:
+  bundleIdPrefix: so.kel
+  deploymentTarget:
+    macOS: "13.0"
+  defaultConfig: Release
+  createIntermediateGroups: true
+
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    ENABLE_USER_SCRIPT_SANDBOXING: YES
+
+packages:
+  NordicMesh:
+    url: https://github.com/NordicSemiconductor/IOS-nRF-Mesh-Library
+    from: 4.2.0
+  Sentry:
+    url: https://github.com/getsentry/sentry-cocoa
+    from: 8.0.0
+  Sparkle:
+    url: https://github.com/sparkle-project/Sparkle.git
+    from: 2.6.0
+
+targets:
+  Amaranth:
+    type: application
+    platform: macOS
+    sources:
+      - Sources
+      - Resources
+      - path: Info.plist
+        buildPhase: none
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: so.kel.Amaranth
+        PRODUCT_NAME: $(TARGET_NAME)
+        DEVELOPMENT_TEAM: P9U2E575US
+        CODE_SIGN_STYLE: Automatic
+        # Debug/local builds sign with the Apple Development identity; the
+        # Release archive is re-signed with Developer ID at export time
+        # (see ExportOptions.plist).
+        "CODE_SIGN_IDENTITY[sdk=macosx*]": Apple Development
+        ENABLE_HARDENED_RUNTIME: YES
+        GENERATE_INFOPLIST_FILE: NO
+        INFOPLIST_FILE: Info.plist
+        INFOPLIST_KEY_CFBundleDisplayName: Amaranth
+        INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.utilities
+        COMBINE_HIDPI_IMAGES: YES
+        # Local default; overridden by `just package` (git commit count) /
+        # MARKETING_VERSION (release tag) at archive time.
+        CURRENT_PROJECT_VERSION: 1
+        MARKETING_VERSION: "0.1.0"
+        LD_RUNPATH_SEARCH_PATHS:
+          - $(inherited)
+          - "@executable_path/../Frameworks"
+    dependencies:
+      - package: NordicMesh
+        product: NordicMesh
+      - package: Sentry
+        product: Sentry
+      - package: Sparkle
+        product: Sparkle
+
+schemes:
+  Amaranth:
+    build:
+      targets:
+        Amaranth: all
+    run:
+      config: Debug
+    profile:
+      config: Release
+    analyze:
+      config: Debug
+    archive:
+      config: Release

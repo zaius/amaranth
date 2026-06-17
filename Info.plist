@@ -9,13 +9,23 @@
     <key>CFBundleIdentifier</key>
     <string>so.kel.Amaranth</string>
     <key>CFBundleVersion</key>
-    <string>1</string>
+    <string>$(CURRENT_PROJECT_VERSION)</string>
     <key>CFBundleShortVersionString</key>
-    <string>0.1.0</string>
+    <string>$(MARKETING_VERSION)</string>
+    <key>GitCommit</key>
+    <string>$(GIT_COMMIT)</string>
+    <key>SUPublicEDKey</key>
+    <string>iLglJG/gPdXQ/QKeMA7e1N/bUFqJSgAYBfW6RlS23fs=</string>
+    <key>SUFeedURL</key>
+    <string>https://zaius.github.io/amaranth/appcast.xml</string>
+    <key>SUEnableAutomaticChecks</key>
+    <true/>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleExecutable</key>
     <string>Amaranth</string>
+    <key>CFBundleIconFile</key>
+    <string>AppIcon</string>
     <key>LSMinimumSystemVersion</key>
     <string>13.0</string>
     <key>LSUIElement</key>
@@ -23,6 +33,6 @@
     <key>NSBluetoothAlwaysUsageDescription</key>
     <string>Amaranth uses Bluetooth to control your Aputure amaran lights over Bluetooth Mesh.</string>
     <key>NSHumanReadableCopyright</key>
-    <string>Built locally — not for distribution.</string>
+    <string>Copyright © 2026 David Kelso. All rights reserved.</string>
 </dict>
 </plist>
