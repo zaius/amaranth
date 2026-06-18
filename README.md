@@ -1,6 +1,11 @@
 # Amaranth
 
-A macOS menu‑bar app for controlling Aputure amaran lights over Bluetooth Mesh.
+A minimalist macOS menu‑bar app for controlling amaran lights.
+
+<img width="482" height="253" alt="Screenshot 2026-06-18 at 3 42 08 PM" src="https://github.com/user-attachments/assets/4730026a-cc7d-419f-8d0d-15e40b8f39b3" />
+
+## Demo
+https://github.com/user-attachments/assets/af4c5a46-0e02-4f4a-9ca8-207739718523
 
 ## What it is
 
