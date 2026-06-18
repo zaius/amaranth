@@ -52,6 +52,16 @@ struct AputureVendorMessage: UnacknowledgedMeshMessage, StaticMeshMessage {
         )))
     }
 
+    /// Vendor "read data" request (sub-opcode 0x0E). Asks the fixture to report
+    /// its live state; it replies with a status report (sub-opcode 0x02 CCT or
+    /// 0x01 HSI) — see `decodeStatus`. The reply is addressed to the official
+    /// app's provisioner unicast (0x0001), not to us, but we still receive it
+    /// because the proxy filter forwards all traffic. See
+    /// `MeshController.handle(message:source:)`.
+    static func statusRequest() -> AputureVendorMessage {
+        AputureVendorMessage(payload: Data(buildPacket(low64: 0, high16: 0x0E00)))
+    }
+
     /// Brightness. `intensity` is 0…1000 (=0…100.0%).
     static func brightness(intensity: Int) -> AputureVendorMessage {
         let i = UInt64(max(0, min(1000, intensity)))
@@ -94,6 +104,89 @@ struct AputureVendorMessage: UnacknowledgedMeshMessage, StaticMeshMessage {
         let checksum = bytes.reduce(0) { ($0 + Int($1)) & 0xFF }
         bytes[0] = UInt8(checksum)
         return bytes
+    }
+}
+
+// MARK: - Incoming status reports
+
+extension AputureVendorMessage {
+
+    /// A fixture's live state, decoded from an incoming Telink vendor status
+    /// report. Fixtures emit these in reply to `statusRequest()` and also
+    /// whenever their state changes from a physical control or another app —
+    /// which is what lets us reflect the *true* state rather than the value we
+    /// last commanded.
+    struct Status: Equatable {
+        enum Mode: Equatable { case cct, hsi }
+        let isOn: Bool
+        let mode: Mode
+        /// 0…1000 (= 0…100.0%); valid in both modes.
+        let intensity: Int
+        /// Kelvin (CCT mode only; 0 in HSI mode).
+        let kelvin: Int
+        /// 0…360 hue (HSI mode only).
+        let hue: Int
+        /// 0…100 saturation (HSI mode only).
+        let saturation: Int
+        /// Raw command-type byte (`p[9] & 0x7F`), kept for diagnostics.
+        let commandType: Int
+    }
+
+    /// Parse a 10-byte vendor payload as a *status report*, or return `nil` if
+    /// it isn't one.
+    ///
+    /// Bit layout cross-checked against the two open-source reimplementations
+    /// linked in the README: aarondfrancis/amaran (`decodePacket`) and
+    /// wesbos/amaran-BLE-control (`decodeStatus`). On/off is `(low64 >> 8) & 1`
+    /// (Wes Bos confirmed this against live hardware as two-way sync; the
+    /// amaran CLI calls the same bit `sleep_mode`).
+    ///
+    /// Returns `nil` for: a bad checksum; a "set" packet (operaType / high bit
+    /// of byte 9 set — i.e. an echo of one of our own on/off, brightness, or
+    /// CTL commands, which matters because a CTL Set's byte 9 0x82 would
+    /// otherwise alias the CCT report type 0x02); or a command-type we don't
+    /// model (e.g. the constant 0x0A diagnostic page the desktop app polls).
+    static func decodeStatus(_ payload: Data) -> Status? {
+        let bytes = [UInt8](payload)
+        guard bytes.count == 10 else { return nil }
+        // Checksum: byte 0 = sum(bytes 1…9) mod 256.
+        let expected = UInt8(bytes[1...].reduce(0) { ($0 + Int($1)) & 0xFF })
+        guard bytes[0] == expected else { return nil }
+
+        let byte9 = bytes[9]
+        // Reports have the operaType (top) bit clear; our outgoing Set commands
+        // (0x8C/0x8F/0x82) have it set.
+        guard byte9 & 0x80 == 0 else { return nil }
+        let commandType = Int(byte9 & 0x7F)
+
+        var low64: UInt64 = 0
+        for i in 0..<8 { low64 |= UInt64(bytes[i]) << (UInt64(i) * 8) }
+        let high16 = UInt16(bytes[8]) | (UInt16(bytes[9]) << 8)
+
+        let isOn = (low64 >> 8) & 0x1 == 1
+        // Intensity packing is identical in both modes; the command-type bits in
+        // the high byte fall outside the 10-bit field and are masked off.
+        let intensity = (Int(high16) << 2 | Int((low64 >> 62) & 0x3)) & 0x3FF
+
+        switch commandType {
+        case 0x02: // CCT
+            let cctRaw = Int((low64 >> 52) & 0x3FF)
+            let cctFlag = Int((low64 >> 42) & 0x1)
+            let telinkCct = cctFlag == 1 ? cctRaw + 1000 : cctRaw // = Kelvin / 10
+            return Status(isOn: isOn, mode: .cct, intensity: intensity,
+                          kelvin: telinkCct * 10, hue: 0, saturation: 0,
+                          commandType: commandType)
+        case 0x01: // HSI / colour
+            var sat = (Int(bytes[6] & 0x1F) << 2) | Int((bytes[5] >> 6) & 0x3)
+            var hue = (Int(bytes[7] & 0x3F) << 3) | Int((bytes[6] >> 5) & 0x7)
+            if sat > 100 { sat = 100 }
+            if hue > 360 { hue = 360 }
+            return Status(isOn: isOn, mode: .hsi, intensity: intensity,
+                          kelvin: 0, hue: hue, saturation: sat,
+                          commandType: commandType)
+        default:
+            return nil // 0x0A diagnostic page or unknown
+        }
     }
 }
 

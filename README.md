@@ -8,6 +8,7 @@ A macOS menu‑bar app for controlling Aputure amaran lights over Bluetooth Mesh
 - Talks to the standard Bluetooth SIG Mesh proxy service (0x1828) via Nordic's open‑source `NordicMesh` library
 - Bootstraps its mesh credentials (NetKey, AppKey, fixture list) by importing them from the amaran Desktop app's SQLite database on first launch, so the lights stay paired with the official apps
 - Currently supports on/off (Generic OnOff), brightness (Light Lightness), and an experimental colour‑temperature slider (Light CTL Temperature)
+- Reads each fixture's **true** state back over the Telink vendor status channel, so the UI reflects changes made by another app or a physical control — not just what we last commanded
 - Ships a **Control Center control** to toggle the light (macOS 26+; see below)
 - Ships with [Sentry](https://sentry.io) crash reporting and [Sparkle](https://sparkle-project.org) auto‑updates
 
@@ -160,8 +161,28 @@ git tag v0.2.0 && git push origin v0.2.0
 ## Known limitations / TODO
 
 - CCT slider currently sends a standard `Light CTL Temperature Set` (opcode 0x8264). The Verge's composition data does not expose a Light CTL Server, so it may ignore this message and we'll need to fall back to Telink's vendor command channel (model 0x0211/0x0000).
-- We can't read the light's true state. The Verge is driven over its vendor channel (opcode 0x26), but its SIG Generic OnOff Server doesn't track that — `GenericOnOffGet` always reports "on". So on/off shown in the UI is the value we last commanded, persisted in the shared container and restored on launch; it won't reflect changes made by another app or a physical control. Reading real state would mean reverse‑engineering the Telink vendor status channel.
 - Storage uses `~/Documents/MeshNetwork.json` (NordicMesh's default). Should move to `~/Library/Application Support/Amaranth/`.
+
+## Reading live state
+
+We *do* read the light's true state, over the Telink vendor status channel
+(the SIG Generic OnOff Server is useless — `GenericOnOffGet` always reports
+"on"). `MeshController` sends a vendor **status request** (opcode 0x26,
+sub‑opcode 0x0E) on connect, every 10 s, and ~200 ms after each on/off command;
+the fixture replies with a 0x26 **status report** carrying real on/off
+(`(low64 >> 8) & 1`), brightness, and CCT (sub‑opcode 0x02) or HSI (0x01). The
+decode (`AputureVendorMessage.decodeStatus`) is cross‑checked against the two
+reimplementations linked below — aarondfrancis/amaran (`decodePacket`) and
+wesbos/amaran‑BLE‑control (`decodeStatus`).
+
+The catch (documented thoroughly by wesbos): fixtures address every status
+reply to the *official app's* provisioner unicast `0x0001`, never to whoever
+asked. We receive them anyway because the proxy filter is set to forward
+everything (see `proxyDidConnect`), and — unlike the ESP‑IDF stack wesbos had
+to patch — NordicMesh delivers messages to the **global** `MeshNetworkDelegate`
+regardless of destination (the destination filter only gates per‑model
+callbacks). So `handle(message:source:)` sees the `0x26` report as an
+`UnknownMessage` and decodes it; no library patch needed.
 
 ## Other projects
 

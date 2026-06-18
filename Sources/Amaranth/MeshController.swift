@@ -59,6 +59,8 @@ final class MeshController: ObservableObject {
     private var sendDebouncers: [String: Task<Void, Never>] = [:]
     private var hasBootstrapped = false
     private var hasBoundFixtureModels: Set<UInt16> = []
+    /// Periodically polls fixtures for their live state while connected.
+    private var statusPoller: Task<Void, Never>?
 
     init() {
         manager = MeshNetworkManager()
@@ -102,6 +104,8 @@ final class MeshController: ObservableObject {
     }
 
     func shutdown() {
+        statusPoller?.cancel()
+        statusPoller = nil
         connection?.close()
         connection = nil
     }
@@ -117,6 +121,14 @@ final class MeshController: ObservableObject {
     nonisolated static func kelvin(forSlider slider: Double) -> Int {
         let s = max(0.0, min(1.0, slider))
         return Int(round(Double(kelvinMin) + s * Double(kelvinMax - kelvinMin)))
+    }
+
+    /// Inverse of `kelvin(forSlider:)` — maps a fixture-reported Kelvin back to
+    /// the 0…1 slider position so incoming status can drive the CCT slider.
+    nonisolated static func slider(forKelvin kelvin: Int) -> Double {
+        let span = Double(kelvinMax - kelvinMin)
+        guard span > 0 else { return 0 }
+        return max(0.0, min(1.0, (Double(kelvin) - Double(kelvinMin)) / span))
     }
 
     nonisolated static func intensity(forLightness lightness: Double) -> Int {
@@ -140,6 +152,9 @@ final class MeshController: ObservableObject {
                 await self.send(AputureVendorMessage.ctl(kelvin: kelvin, intensity: intensity), to: address)
                 await self.send(AputureVendorMessage.brightness(intensity: intensity), to: address)
             }
+            // Reconcile against the fixture's real state once it settles.
+            try? await Task.sleep(nanoseconds: 200_000_000)
+            await self.requestStatus(address: address)
         }
     }
 
@@ -173,14 +188,49 @@ final class MeshController: ObservableObject {
         }
     }
 
-    /// We can't read the light's true on/off state: the Verge is driven over its
-    /// vendor channel (opcode 0x26), but its SIG Generic OnOff Server doesn't
-    /// track that — `GenericOnOffGet` always reports "on" even when the light is
-    /// off. So there's nothing reliable to poll; the value we last commanded
-    /// (persisted in the shared container, restored on launch) is the source of
-    /// truth. "Refresh" just re-pushes that to the menu bar + Control Center.
+    /// Pull each fixture's true state over the Telink vendor status channel and
+    /// re-publish to the menu bar + Control Center. The fixture's SIG Generic
+    /// OnOff Server is useless here (it always reports "on"), but a vendor
+    /// status request (sub-opcode 0x0E) makes the fixture report its real
+    /// on/off, brightness, and CCT — including changes made by another app or a
+    /// physical control. Replies arrive asynchronously in
+    /// `handle(message:source:)`.
     func refreshAllState() {
         publishSharedSnapshot()
+        Task { await pollStatus() }
+    }
+
+    /// Ask one fixture to report its live state.
+    func requestStatus(address: UInt16) async {
+        await send(AputureVendorMessage.statusRequest(), to: address)
+    }
+
+    /// Ask every fixture to report its live state.
+    func pollStatus() async {
+        for fixture in fixtures {
+            await requestStatus(address: fixture.unicastAddress)
+        }
+    }
+
+    /// While connected, periodically refresh live state so the UI tracks
+    /// changes made outside the app (physical knob, official app, etc.).
+    private func startStatusPolling() {
+        statusPoller?.cancel()
+        statusPoller = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: 10_000_000_000) // 10s
+                guard !Task.isCancelled else { break }
+                await self?.pollStatus()
+            }
+        }
+    }
+
+    /// True while the user is actively driving a control on this fixture, so an
+    /// incoming poll won't fight a live slider drag.
+    private func hasPendingControl(address: UInt16) -> Bool {
+        sendDebouncers["light-\(address)"] != nil ||
+        sendDebouncers["cct-\(address)"] != nil ||
+        sendDebouncers["onoff-\(address)"] != nil
     }
 
     // MARK: - Control Center bridge
@@ -279,9 +329,10 @@ final class MeshController: ObservableObject {
         }
         self.fixtures = models.sorted { $0.unicastAddress < $1.unicastAddress }
         self.fixtureByAddress = byAddress
-        // Restore the last-known on/off state across relaunches. The light's true
-        // state isn't readable (see refreshAllState), so the value we last
-        // commanded — persisted in the shared container — is our source of truth.
+        // Seed on/off from the last-known state (persisted in the shared
+        // container) so the UI has something to show immediately on launch.
+        // Once the bearer connects we poll the fixtures for their true state
+        // (see refreshAllState / handle(message:source:)), which then takes over.
         for fixture in self.fixtures {
             fixture.isOn = SharedStore.readState(address: Int(fixture.unicastAddress))
         }
@@ -349,6 +400,9 @@ final class MeshController: ObservableObject {
             // and trap, crashing the whole app on (re)connect.
             manager.proxyFilter.setType(.rejectList)
             await rebindIfNeeded()
+            // Pull live state now, then keep it fresh on a timer.
+            await pollStatus()
+            startStatusPolling()
         }
     }
 
@@ -371,6 +425,8 @@ final class MeshController: ObservableObject {
     }
 
     fileprivate func proxyDidDisconnect() {
+        statusPoller?.cancel()
+        statusPoller = nil
         connectionState = .scanning
     }
 
@@ -407,11 +463,39 @@ extension MeshController: MeshNetworkDelegate {
 
     @MainActor
     private func handle(message: any MeshMessage, source: Address) async {
-        // Deliberately a no-op for OnOff status. The Verge's SIG Generic OnOff
-        // Server doesn't reflect the vendor channel we actually control it with
-        // (it always reports "on"), so applying incoming SIG status would corrupt
-        // the state we track from our own commands. Left as a hook for future
-        // vendor-status parsing.
+        // We only care about Telink vendor status reports (opcode 0x26). They
+        // arrive as `UnknownMessage` because no local model decodes 0x26, and
+        // they're addressed to the official app's provisioner unicast (0x0001),
+        // not to us — but NordicMesh still delivers them to this global delegate
+        // (the destination filter only gates per-model callbacks). The SIG
+        // Generic OnOff Server is ignored on purpose: it always reports "on".
+        guard message.opCode == AputureVendorMessage.opCode,
+              let payload = message.parameters,
+              let status = AputureVendorMessage.decodeStatus(payload) else { return }
+        guard let fixture = fixtureByAddress[source] else {
+            Log.recv.debug("vendor status from unknown source \(String(format: "0x%04X", source), privacy: .public)")
+            return
+        }
+
+        let detail = status.mode == .cct
+            ? "cct=\(status.kelvin)K"
+            : "hsi=\(status.hue)°/\(status.saturation)%"
+        Log.recv.notice("⟵ status \(fixture.name, privacy: .public): on=\(status.isOn, privacy: .public) intensity=\(status.intensity, privacy: .public) \(detail, privacy: .public) (cmd 0x\(String(format: "%02X", status.commandType), privacy: .public))")
+
+        fixture.lastStatus = Date()
+        let onChanged = fixture.isOn != status.isOn
+        fixture.isOn = status.isOn
+
+        // Fold brightness/CCT back into the sliders only when the user isn't
+        // mid-adjustment on this fixture, so a poll can't yank a live drag.
+        if status.isOn, !hasPendingControl(address: source) {
+            fixture.lightness = Double(status.intensity) / 1000.0
+            if status.mode == .cct {
+                fixture.temperature = Self.slider(forKelvin: status.kelvin)
+            }
+        }
+
+        if onChanged { publishState(address: source, isOn: status.isOn) }
     }
 }
 
