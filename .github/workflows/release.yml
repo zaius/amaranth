@@ -103,6 +103,13 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
+      # Self-heal: re-enables Pages (GitHub Actions source) if it's been
+      # disabled. The github-pages environment + its v* tag deploy policy
+      # persist independently, so releases keep deploying without manual setup.
+      - name: Ensure GitHub Pages is enabled
+        uses: actions/configure-pages@v5
+        with:
+          enablement: true
       - name: Deploy the appcast to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
