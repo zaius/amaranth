@@ -40,6 +40,15 @@ run:
         open "{{app_path}}"
     fi
 
+# Reset Control Center's cached state for the control extension. Use if the
+# control gets wedged (ghost/duplicate, no icon, taps do nothing) after changing
+# its structure — then re-add the control in Control Center. chronod and
+# ControlCenter relaunch automatically.
+reset-controls:
+    rm -rf "$HOME/Library/Containers/so.kel.Amaranth.Control"
+    killall ControlCenter chronod 2>/dev/null || true
+    @echo "Control Center cache reset — re-add the Amaranth control."
+
 # Remove build artifacts
 clean:
     rm -rf "{{build_dir}}" release
@@ -77,6 +86,22 @@ package version: generate
     GIT_SHA=$(git rev-parse --short HEAD)
     echo "==> Building Amaranth {{version}} → build $GIT_BUILD ($GIT_SHA)"
 
+    # Automatic signing must now authorize the App Group entitlement (shared
+    # container with the Control Center extension), which requires provisioning
+    # updates. In CI an App Store Connect API key — ASC_KEY_ID / ASC_ISSUER_ID /
+    # ASC_KEY_PATH — lets xcodebuild register the capability and mint the
+    # Developer ID profiles non-interactively (the key needs Admin or App
+    # Manager access). Locally the signed-in Xcode account covers it, so the key
+    # is optional. The `${auth[@]+...}` guard keeps the empty array safe under
+    # `set -u` on macOS's bash 3.2.
+    auth=()
+    if [ -n "${ASC_KEY_ID:-}" ] && [ -n "${ASC_ISSUER_ID:-}" ] && [ -n "${ASC_KEY_PATH:-}" ]; then
+      echo "==> Using App Store Connect API key $ASC_KEY_ID for provisioning"
+      auth=(-authenticationKeyID "$ASC_KEY_ID" \
+            -authenticationKeyIssuerID "$ASC_ISSUER_ID" \
+            -authenticationKeyPath "$ASC_KEY_PATH")
+    fi
+
     echo "==> Archiving (Release)…"
     xcodebuild \
       -project Amaranth.xcodeproj \
@@ -85,6 +110,7 @@ package version: generate
       -destination 'platform=macOS' \
       -archivePath "{{archive_path}}" \
       -derivedDataPath "{{build_dir}}" \
+      -allowProvisioningUpdates "${auth[@]+"${auth[@]}"}" \
       MARKETING_VERSION="{{version}}" \
       CURRENT_PROJECT_VERSION="$GIT_BUILD" \
       GIT_COMMIT="$GIT_SHA" \
@@ -94,7 +120,8 @@ package version: generate
     xcodebuild -exportArchive \
       -archivePath "{{archive_path}}" \
       -exportPath "{{export_dir}}" \
-      -exportOptionsPlist ExportOptions.plist
+      -exportOptionsPlist ExportOptions.plist \
+      -allowProvisioningUpdates "${auth[@]+"${auth[@]}"}"
 
     APP="{{export_dir}}/Amaranth.app"
 

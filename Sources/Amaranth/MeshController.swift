@@ -126,6 +126,7 @@ final class MeshController: ObservableObject {
     func setOnOff(_ fixture: FixtureViewModel, isOn: Bool) {
         fixture.isOn = isOn
         let address = fixture.unicastAddress
+        publishState(address: address, isOn: isOn)
         // Snapshot brightness/CCT so we can re-apply them after turning on.
         let intensity = Self.intensity(forLightness: fixture.lightness)
         let kelvin = Self.kelvin(forSlider: fixture.temperature)
@@ -172,18 +173,30 @@ final class MeshController: ObservableObject {
         }
     }
 
-    func refreshState(of fixture: FixtureViewModel) {
-        Task { [weak self] in
-            guard let self else { return }
-            await self.send(GenericOnOffGet(), to: fixture.unicastAddress)
-            await self.send(LightLightnessGet(), to: fixture.unicastAddress)
-        }
+    /// We can't read the light's true on/off state: the Verge is driven over its
+    /// vendor channel (opcode 0x26), but its SIG Generic OnOff Server doesn't
+    /// track that — `GenericOnOffGet` always reports "on" even when the light is
+    /// off. So there's nothing reliable to poll; the value we last commanded
+    /// (persisted in the shared container, restored on launch) is the source of
+    /// truth. "Refresh" just re-pushes that to the menu bar + Control Center.
+    func refreshAllState() {
+        publishSharedSnapshot()
     }
 
-    func refreshAllState() {
-        for fixture in fixtures {
-            refreshState(of: fixture)
-        }
+    // MARK: - Control Center bridge
+
+    /// Publish the full roster + current on/off state into the App Group
+    /// container and refresh the control. Cheap; call whenever fixtures change.
+    func publishSharedSnapshot() {
+        SharedStore.writeRoster(fixtures.map { .init(address: Int($0.unicastAddress), name: $0.name) })
+        SharedStore.writeStates(Dictionary(uniqueKeysWithValues:
+            fixtures.map { (String($0.unicastAddress), $0.isOn) }))
+        SharedStore.reloadControls()
+    }
+
+    private func publishState(address: UInt16, isOn: Bool) {
+        SharedStore.writeState(address: Int(address), isOn: isOn)
+        SharedStore.reloadControls()
     }
 
     /// Bind our primary AppKey to a list of (modelId, optional companyId) on
@@ -266,6 +279,13 @@ final class MeshController: ObservableObject {
         }
         self.fixtures = models.sorted { $0.unicastAddress < $1.unicastAddress }
         self.fixtureByAddress = byAddress
+        // Restore the last-known on/off state across relaunches. The light's true
+        // state isn't readable (see refreshAllState), so the value we last
+        // commanded — persisted in the shared container — is our source of truth.
+        for fixture in self.fixtures {
+            fixture.isOn = SharedStore.readState(address: Int(fixture.unicastAddress))
+        }
+        publishSharedSnapshot()
     }
 
     private func startConnection() {
@@ -319,15 +339,16 @@ final class MeshController: ObservableObject {
         connectionState = .ready(proxyName: name ?? "Mesh proxy")
         Task { @MainActor in
             try? await Task.sleep(nanoseconds: 250_000_000)
-            // The Verge sends its vendor status replies to:
-            //   - 0xC000: the group address the Aputure app uses for probes.
-            //   - 0x0001: the Aputure app's *hardcoded* unicast address —
-            //     the Verge firmware appears to reply to 0x0001 regardless
-            //     of who sent the query, so we have to accept its traffic
-            //     too or we never see opcode 0x26 status replies.
-            manager.proxyFilter.add(addresses: [0xC000, 0x0001])
+            // The Verge sends its vendor status replies to addresses we don't
+            // own (0xC000, and 0x0001 — the Aputure app's hardcoded unicast),
+            // so we must receive traffic to those too. Use a *reject* filter
+            // with an empty list, i.e. "forward everything", instead of adding
+            // specific addresses to an accept list: the Verge reports a smaller
+            // Proxy Filter list size than requested, which makes NordicMesh's
+            // AddAddressesToFilter handler compute a negative `prefix` length
+            // and trap, crashing the whole app on (re)connect.
+            manager.proxyFilter.setType(.rejectList)
             await rebindIfNeeded()
-            refreshAllState()
         }
     }
 
@@ -386,19 +407,11 @@ extension MeshController: MeshNetworkDelegate {
 
     @MainActor
     private func handle(message: any MeshMessage, source: Address) async {
-        guard let fixture = fixtureByAddress[UInt16(source)] else { return }
-        // SIG status replies decoded by the library are dispatched here. For
-        // the amaran lights only `GenericOnOffGet` returns a usable reply
-        // — `LightLightnessGet` etc. are advertised but never answered, so
-        // a single OnOff status keeper is all we need at runtime.
-        if let s = message as? GenericOnOffStatus {
-            fixture.isOn = s.isOn
-            fixture.lastStatus = Date()
-        } else if let u = message as? UnknownMessage, u.opCode == 0x8204,
-                  let p = u.parameters, !p.isEmpty {
-            fixture.isOn = p[0] != 0
-            fixture.lastStatus = Date()
-        }
+        // Deliberately a no-op for OnOff status. The Verge's SIG Generic OnOff
+        // Server doesn't reflect the vendor channel we actually control it with
+        // (it always reports "on"), so applying incoming SIG status would corrupt
+        // the state we track from our own commands. Left as a hook for future
+        // vendor-status parsing.
     }
 }
 

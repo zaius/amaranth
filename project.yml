@@ -3,7 +3,7 @@ name: Amaranth
 options:
   bundleIdPrefix: so.kel
   deploymentTarget:
-    macOS: "13.0"
+    macOS: "26.0"
   defaultConfig: Release
   createIntermediateGroups: true
 
@@ -28,7 +28,8 @@ targets:
     type: application
     platform: macOS
     sources:
-      - Sources
+      - Sources/Amaranth
+      - Sources/Shared
       - Resources
       - path: Info.plist
         buildPhase: none
@@ -42,6 +43,7 @@ targets:
         # Release archive is re-signed with Developer ID at export time
         # (see ExportOptions.plist).
         "CODE_SIGN_IDENTITY[sdk=macosx*]": Apple Development
+        CODE_SIGN_ENTITLEMENTS: Amaranth.entitlements
         ENABLE_HARDENED_RUNTIME: YES
         GENERATE_INFOPLIST_FILE: NO
         INFOPLIST_FILE: Info.plist
@@ -62,6 +64,30 @@ targets:
         product: Sentry
       - package: Sparkle
         product: Sparkle
+      # Control Center extension, embedded in Contents/PlugIns.
+      - target: AmaranthControl
+        embed: true
+
+  AmaranthControl:
+    type: app-extension
+    platform: macOS
+    sources:
+      - Sources/AmaranthControl
+      - Sources/Shared
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: so.kel.Amaranth.Control
+        PRODUCT_NAME: AmaranthControl
+        DEVELOPMENT_TEAM: P9U2E575US
+        CODE_SIGN_STYLE: Automatic
+        "CODE_SIGN_IDENTITY[sdk=macosx*]": Apple Development
+        CODE_SIGN_ENTITLEMENTS: Control/AmaranthControl.entitlements
+        ENABLE_HARDENED_RUNTIME: YES
+        GENERATE_INFOPLIST_FILE: NO
+        INFOPLIST_FILE: Control/Info.plist
+        SKIP_INSTALL: YES
+        CURRENT_PROJECT_VERSION: 1
+        MARKETING_VERSION: "0.1.0"
 
 schemes:
   Amaranth:

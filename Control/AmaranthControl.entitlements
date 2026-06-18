@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!-- App extensions are always sandboxed. -->
+    <key>com.apple.security.app-sandbox</key>
+    <true/>
+    <!-- Same group as the app, so the control can read the roster/state the
+         agent publishes and write back toggle commands. -->
+    <key>com.apple.security.application-groups</key>
+    <array>
+        <string>P9U2E575US.group.so.kel.Amaranth</string>
+    </array>
+</dict>
+</plist>

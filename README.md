@@ -8,12 +8,13 @@ A macOS menu‑bar app for controlling Aputure amaran lights over Bluetooth Mesh
 - Talks to the standard Bluetooth SIG Mesh proxy service (0x1828) via Nordic's open‑source `NordicMesh` library
 - Bootstraps its mesh credentials (NetKey, AppKey, fixture list) by importing them from the amaran Desktop app's SQLite database on first launch, so the lights stay paired with the official apps
 - Currently supports on/off (Generic OnOff), brightness (Light Lightness), and an experimental colour‑temperature slider (Light CTL Temperature)
+- Ships a **Control Center control** to toggle the light (macOS 26+; see below)
 - Ships with [Sentry](https://sentry.io) crash reporting and [Sparkle](https://sparkle-project.org) auto‑updates
 
 ## Requirements
 
-- macOS 13 (Ventura) or newer
-- Xcode 15 / Swift 5.9 or newer
+- macOS 26 (Tahoe) or newer (required by the Control Center control)
+- Xcode 26 or newer
 - Build tooling: [`xcodegen`](https://github.com/yonaskolb/XcodeGen), [`just`](https://github.com/casey/just), and (for releases) [`create-dmg`](https://github.com/sindresorhus/create-dmg)
   ```sh
   brew install xcodegen just
@@ -29,8 +30,41 @@ The Xcode project is generated from `project.yml` by XcodeGen — it isn't check
 just            # generate the project, build (Debug), and (re)launch the app
 just build      # generate + build only
 just generate   # just regenerate Amaranth.xcodeproj
+just reset-controls  # reset Control Center's cache if the control gets wedged
 just clean      # remove .build/ and release/
 ```
+
+## Control Center control
+
+A WidgetKit control extension (`AmaranthControl.appex`, embedded in the app)
+toggles the light from Control Center on macOS 26+. The extension never touches
+Bluetooth — only one process can hold the mesh proxy, and the menu‑bar agent
+already does. They share state through an App Group container
+(`P9U2E575US.group.so.kel.Amaranth`): the agent publishes the fixture roster +
+on/off state and calls `ControlCenter.reloadControls`; tapping the control runs
+`ToggleLightIntent` in the extension's background process, which writes a one‑shot
+command + fires a Darwin notification, and `ControlBridge` in the agent applies it
+over the live bearer.
+
+**Gotchas worth not re‑discovering:**
+
+- **Exactly one registered copy of the app must exist.** If two bundles claim
+  `so.kel.Amaranth`, LaunchServices/`linkd` can't resolve which owns the App Intents and
+  control taps silently do nothing** (no icon, no dispatch). If the control wedges
+  (usually after changing its structure), reset its Control Center cache and re‑add the
+  control:
+  ```sh
+  just reset-controls   # = rm -rf ~/Library/Containers/so.kel.Amaranth.Control && killall ControlCenter chronod
+  ```
+- **It's a `ControlWidgetButton`, not a `ControlWidgetToggle`.** A `SetValueIntent` on a
+  toggle doesn't reliably dispatch here (its `value` never resolves). The button reads
+  the current state and sends the opposite; the value provider drives the bulb icon so
+  it still reflects on/off.
+- **Proxy filter is set to reject‑list ("forward everything"), not accept‑list.**
+  `MeshController` used to `add` the Verge's reply addresses to the proxy accept list,
+  but the Verge reports a smaller filter size than requested, making NordicMesh's
+  `ProxyFilter` compute a negative `prefix` length and trap — crashing the whole agent
+  on connect. See `proxyDidConnect`.
 
 ## Layout
 
@@ -43,12 +77,20 @@ amaranth/
   Resources/AppIcon.icns   # app icon (regen with scripts/make-icon.swift)
   scripts/make-icon.swift  # renders the icon
   .github/workflows/release.yml
+  Amaranth.entitlements    # App Group entitlement (shared container)
+  Control/                 # control extension Info.plist + entitlements
   Sources/Amaranth/
     AmaranthApp.swift    # @main, MenuBarExtra wiring, Sentry start
     Updater.swift        # Sparkle updater + "Check for Updates…"
     MenuView.swift       # the dropdown UI
     MeshController.swift # ObservableObject; bearer + send + status delegate
     MeshImporter.swift   # amaran.db -> SIG Mesh CDB JSON
+    ControlBridge.swift  # applies Control Center toggle commands to the mesh
+  Sources/Shared/        # compiled into BOTH the app and the control extension
+    SharedStore.swift    # App Group container IPC: roster / state / command
+  Sources/AmaranthControl/   # the Control Center control extension
+    LightToggleControl.swift # ControlWidget + on/off value provider
+    Intents.swift            # ToggleLightIntent
 ```
 
 ## Releasing
@@ -118,7 +160,7 @@ git tag v0.2.0 && git push origin v0.2.0
 ## Known limitations / TODO
 
 - CCT slider currently sends a standard `Light CTL Temperature Set` (opcode 0x8264). The Verge's composition data does not expose a Light CTL Server, so it may ignore this message and we'll need to fall back to Telink's vendor command channel (model 0x0211/0x0000).
-- No Online Status (live state pushed by the proxy node) yet — we only refresh by polling `GenericOnOffGet` / `LightLightnessGet` on connect and on user request.
+- We can't read the light's true state. The Verge is driven over its vendor channel (opcode 0x26), but its SIG Generic OnOff Server doesn't track that — `GenericOnOffGet` always reports "on". So on/off shown in the UI is the value we last commanded, persisted in the shared container and restored on launch; it won't reflect changes made by another app or a physical control. Reading real state would mean reverse‑engineering the Telink vendor status channel.
 - Storage uses `~/Documents/MeshNetwork.json` (NordicMesh's default). Should move to `~/Library/Application Support/Amaranth/`.
 
 ## Other projects

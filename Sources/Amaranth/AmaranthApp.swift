@@ -39,11 +39,15 @@ struct AmaranthApp: App {
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     let controller = MeshController()
+    private var controlBridge: ControlBridge?
 
     nonisolated func applicationDidFinishLaunching(_ notification: Notification) {
         MainActor.assumeIsolated {
             Log.app.notice("applicationDidFinishLaunching — booting MeshController")
             controller.bootstrap()
+            // Listen for Control Center toggle requests and keep the control's
+            // published state in sync with the mesh.
+            controlBridge = ControlBridge(controller: controller)
         }
     }
 }

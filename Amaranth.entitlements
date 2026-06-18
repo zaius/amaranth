@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!-- Shared container with the Control Center extension. The app is not
+         sandboxed (it needs unrestricted Bluetooth), so this is the only
+         entitlement it carries. -->
+    <key>com.apple.security.application-groups</key>
+    <array>
+        <string>P9U2E575US.group.so.kel.Amaranth</string>
+    </array>
+</dict>
+</plist>
