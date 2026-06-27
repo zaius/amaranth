@@ -1,0 +1,134 @@
+---
+import Layout from "../layouts/Layout.astro";
+import AppPreview from "../components/AppPreview.astro";
+
+const base = import.meta.env.BASE_URL;
+const REPO = "https://github.com/zaius/amaranth";
+const DOWNLOAD = `${REPO}/releases/latest`;
+
+const features = [
+  {
+    title: "Menu-bar control",
+    body: "On/off, brightness and colour temperature from a SwiftUI menu-bar item.",
+    icon: "menubar",
+  },
+  {
+    title: "True state",
+    body: "Reads the light's real on/off, brightness and colour back over the vendor status channel.",
+    icon: "pulse",
+  },
+  {
+    title: "Control Center",
+    body: "Toggle the light from macOS Control Center. Requires macOS 26.",
+    icon: "toggle",
+  },
+  {
+    title: "Open source",
+    body: "Built on Nordic's NordicMesh over the Bluetooth SIG Mesh proxy.",
+    icon: "code",
+  },
+];
+
+// Minimal line-icon set (1.6px stroke) used by the feature cards.
+const ICONS: Record<string, string> = {
+  pulse: '<path d="M2 12h4l3 8 4-16 3 8h6"/>',
+  menubar: '<rect x="2" y="4" width="20" height="16" rx="3"/><path d="M2 9h20"/><circle cx="18" cy="6.5" r=".6" fill="currentColor"/>',
+  toggle: '<rect x="2" y="7" width="20" height="10" rx="5"/><circle cx="16" cy="12" r="3" fill="currentColor" stroke="none"/>',
+  code: '<path d="m8 6-6 6 6 6"/><path d="m16 6 6 6-6 6"/>',
+};
+const icon = (name: string) =>
+  `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[name] ?? ""}</svg>`;
+---
+
+<Layout>
+  <nav class="nav" id="nav">
+    <div class="wrap nav__row">
+      <a class="brand" href="#top" aria-label="Amaranth — home">
+        <img class="brand__mark" src={`${base}/icon.png`} alt="" width="26" height="26" />
+        Amaranth
+      </a>
+      <div class="nav__links">
+        <a href={REPO}>GitHub</a>
+        <a class="btn btn--primary btn--sm" href={DOWNLOAD}>Download</a>
+      </div>
+    </div>
+  </nav>
+
+  <span id="top"></span>
+
+  <header class="hero wrap">
+    <div class="hero__glow" aria-hidden="true"></div>
+
+    <h1 class="hero__title reveal d1">
+      Your amaran lights,<br />from the <em>menu bar.</em>
+    </h1>
+    <p class="hero__sub reveal d2">
+      On/off, brightness and colour temperature over Bluetooth Mesh — reading the
+      light's true state back as it changes.
+    </p>
+
+    <div class="hero__cta reveal d3">
+      <a class="btn btn--primary" href={DOWNLOAD}>
+        <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M16.36 1.43c.06 1.1-.35 2.18-1.06 2.99-.72.83-1.9 1.46-3.04 1.37-.1-1.05.4-2.16 1.05-2.93.73-.85 1.98-1.49 3.05-1.43ZM20.4 17.2c-.55 1.27-.81 1.84-1.52 2.97-.99 1.57-2.39 3.53-4.12 3.55-1.54.01-1.93-1-4.02-.99-2.08.01-2.51.99-4.05.97-1.73-.02-3.06-1.79-4.05-3.36C-.05 16-.34 11.4 1.36 8.95 2.57 7.2 4.48 6.18 6.27 6.18c1.83 0 2.98 1 4.49 1 1.47 0 2.36-1 4.48-1 1.6 0 3.3.87 4.51 2.38-3.96 2.17-3.32 7.82.65 8.64Z"/></svg>
+        Download for macOS
+      </a>
+      <a class="btn btn--ghost" href={REPO}>View source</a>
+    </div>
+
+    <p class="hero__meta reveal d3">Requires <strong>macOS&nbsp;26 Tahoe</strong></p>
+
+    <div class="shot reveal d4">
+      <div class="shot__floor" aria-hidden="true"></div>
+      <AppPreview />
+    </div>
+  </header>
+
+  <section class="section" id="features">
+    <div class="wrap">
+      <div class="features in-view">
+        {
+          features.map((f) => (
+            <article class="feature">
+              <div class="feature__icon" set:html={icon(f.icon)} />
+              <h3>{f.title}</h3>
+              <p>{f.body}</p>
+            </article>
+          ))
+        }
+      </div>
+    </div>
+  </section>
+
+  <footer class="footer">
+    <div class="wrap footer__row">
+      <span class="footer__brand">
+        <img src={`${base}/icon.png`} alt="" width="22" height="22" />
+        Amaranth
+      </span>
+      <span class="footer__meta">
+        <a href={REPO}>GitHub</a>
+        <span>© 2026 David Kelso</span>
+      </span>
+    </div>
+  </footer>
+</Layout>
+
+<script>
+  const nav = document.getElementById("nav");
+  const onScroll = () => nav?.classList.toggle("scrolled", window.scrollY > 8);
+  onScroll();
+  window.addEventListener("scroll", onScroll, { passive: true });
+
+  const io = new IntersectionObserver(
+    (entries) => {
+      for (const e of entries) {
+        if (e.isIntersecting) {
+          e.target.classList.add("is-visible");
+          io.unobserve(e.target);
+        }
+      }
+    },
+    { threshold: 0.15 },
+  );
+  document.querySelectorAll(".in-view").forEach((el) => io.observe(el));
+</script>

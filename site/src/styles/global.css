@@ -1,0 +1,346 @@
+/* ── Amaranth — design tokens ─────────────────────────────────────────────
+   Dark, refined, minimal. The accent is "amaranth" the colour (a crimson),
+   pulled straight from the app icon's gradient. Light is the motif: the bulb
+   glows, the hero radiates, the buttons emit. */
+
+:root {
+  /* canvas — a warm near-black so the crimson reads warm, not neon */
+  --bg: #0b0809;
+  --bg-soft: #110d0f;
+  --panel: #15101300;
+  --card: rgba(255, 255, 255, 0.025);
+  --card-hover: rgba(255, 255, 255, 0.045);
+
+  /* ink */
+  --text: #f6f1f2;
+  --muted: #a39a9d;
+  --faint: #6f6669;
+
+  /* amaranth */
+  --amaranth: #e5365b;
+  --amaranth-bright: #ff5d7e;
+  --magenta-deep: #8a1e47;
+  --glow: rgba(229, 54, 91, 0.45);
+
+  --line: rgba(255, 255, 255, 0.08);
+  --line-strong: rgba(255, 255, 255, 0.14);
+
+  --accent-grad: linear-gradient(135deg, #ff6286 0%, #e5365b 45%, #9b234e 100%);
+
+  --font-display: "Instrument Serif", Georgia, "Times New Roman", serif;
+  --font-sans: "Hanken Grotesk", -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+
+  --radius: 18px;
+  --maxw: 1080px;
+  --ease: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* ── reset ───────────────────────────────────────────────────────────── */
+*,
+*::before,
+*::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html { scroll-behavior: smooth; -webkit-text-size-adjust: 100%; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-sans);
+  font-size: 17px;
+  line-height: 1.6;
+  font-weight: 400;
+  letter-spacing: -0.01em;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  overflow-x: hidden;
+  position: relative;
+  min-height: 100vh;
+}
+
+/* atmosphere: a faint film grain + two settling colour washes */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background:
+    radial-gradient(60% 50% at 50% -8%, rgba(229, 54, 91, 0.16), transparent 70%),
+    radial-gradient(40% 40% at 92% 8%, rgba(155, 35, 78, 0.12), transparent 70%);
+}
+
+img { display: block; max-width: 100%; height: auto; }
+a { color: inherit; text-decoration: none; }
+
+::selection { background: var(--amaranth); color: #fff; }
+
+::-webkit-scrollbar { width: 10px; }
+::-webkit-scrollbar-thumb { background: #2a2225; border-radius: 10px; }
+
+/* ── layout helpers ──────────────────────────────────────────────────── */
+.wrap {
+  width: 100%;
+  max-width: var(--maxw);
+  margin-inline: auto;
+  padding-inline: 26px;
+  position: relative;
+  z-index: 1;
+}
+
+/* ── nav ─────────────────────────────────────────────────────────────── */
+.nav {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  backdrop-filter: blur(14px) saturate(140%);
+  background: linear-gradient(to bottom, rgba(11, 8, 9, 0.82), rgba(11, 8, 9, 0.35));
+  border-bottom: 1px solid transparent;
+  transition: border-color 0.4s var(--ease), background 0.4s var(--ease);
+}
+.nav.scrolled { border-bottom-color: var(--line); }
+.nav__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 66px;
+}
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 11px;
+  font-weight: 600;
+  font-size: 16px;
+  letter-spacing: -0.02em;
+}
+.brand__mark {
+  width: 26px; height: 26px;
+  border-radius: 7px;
+  box-shadow: 0 0 0 1px var(--line-strong), 0 4px 14px rgba(229, 54, 91, 0.25);
+}
+.nav__links {
+  display: flex;
+  align-items: center;
+  gap: 28px;
+  font-size: 14.5px;
+  color: var(--muted);
+}
+.nav__links a { transition: color 0.2s var(--ease); }
+.nav__links a:hover { color: var(--text); }
+
+/* ── buttons ─────────────────────────────────────────────────────────── */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  font-family: var(--font-sans);
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  padding: 12px 22px;
+  border-radius: 12px;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: transform 0.25s var(--ease), box-shadow 0.3s var(--ease),
+    background 0.25s var(--ease), border-color 0.25s var(--ease);
+  white-space: nowrap;
+}
+.btn svg { width: 17px; height: 17px; }
+.btn--primary {
+  background: var(--accent-grad);
+  color: #fff;
+  box-shadow: 0 8px 26px -8px var(--glow), inset 0 1px 0 rgba(255, 255, 255, 0.25);
+}
+.btn--primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 14px 38px -8px var(--glow), inset 0 1px 0 rgba(255, 255, 255, 0.3);
+}
+.btn--ghost {
+  background: var(--card);
+  border-color: var(--line-strong);
+  color: var(--text);
+}
+.btn--ghost:hover {
+  background: var(--card-hover);
+  border-color: var(--muted);
+  transform: translateY(-2px);
+}
+.btn--sm { padding: 8px 15px; font-size: 13.5px; border-radius: 10px; }
+
+/* ── hero ────────────────────────────────────────────────────────────── */
+.hero {
+  position: relative;
+  padding-top: clamp(64px, 12vh, 132px);
+  padding-bottom: clamp(40px, 8vh, 90px);
+  text-align: center;
+}
+.hero__glow {
+  position: absolute;
+  top: -60px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(820px, 92vw);
+  height: 520px;
+  background: radial-gradient(50% 50% at 50% 50%, rgba(229, 54, 91, 0.32), transparent 70%);
+  filter: blur(20px);
+  z-index: 0;
+  pointer-events: none;
+  animation: breathe 7s var(--ease) infinite;
+}
+@keyframes breathe {
+  0%, 100% { opacity: 0.7; transform: translateX(-50%) scale(1); }
+  50% { opacity: 1; transform: translateX(-50%) scale(1.06); }
+}
+.hero__title {
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: clamp(40px, 7vw, 82px);
+  line-height: 1.0;
+  letter-spacing: -0.02em;
+  margin-top: 26px;
+  max-width: 22ch;
+  margin-inline: auto;
+}
+.hero__title em {
+  font-style: italic;
+  background: var(--accent-grad);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  padding-right: 0.06em;
+}
+.hero__sub {
+  margin: 26px auto 0;
+  max-width: 52ch;
+  font-size: clamp(16px, 2.2vw, 19px);
+  color: var(--muted);
+  line-height: 1.65;
+}
+.hero__cta {
+  margin-top: 34px;
+  display: flex;
+  gap: 14px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+.hero__meta {
+  margin-top: 18px;
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  letter-spacing: 0.04em;
+  color: var(--faint);
+}
+.hero__meta strong { color: var(--muted); font-weight: 400; }
+
+/* the screenshot, floating in glow */
+.shot {
+  position: relative;
+  margin: clamp(48px, 8vh, 80px) auto 0;
+  width: fit-content;
+  max-width: 100%;
+}
+.shot__floor {
+  position: absolute;
+  left: 50%;
+  bottom: -46px;
+  transform: translateX(-50%);
+  width: 70%;
+  height: 80px;
+  background: radial-gradient(50% 50% at 50% 50%, rgba(229, 54, 91, 0.35), transparent 70%);
+  filter: blur(26px);
+  z-index: -1;
+}
+
+/* ── feature grid ────────────────────────────────────────────────────── */
+.section { padding: clamp(56px, 9vh, 96px) 0; position: relative; }
+.features {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1px;
+  background: var(--line);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+@media (max-width: 560px) { .features { grid-template-columns: 1fr; } }
+
+.feature {
+  background: var(--bg);
+  padding: 30px 28px 34px;
+  transition: background 0.3s var(--ease);
+}
+.feature:hover { background: var(--bg-soft); }
+.feature__icon {
+  width: 38px; height: 38px;
+  display: grid;
+  place-items: center;
+  border-radius: 11px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  color: var(--amaranth-bright);
+  margin-bottom: 18px;
+}
+.feature__icon svg { width: 19px; height: 19px; }
+.feature h3 {
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+.feature p {
+  margin-top: 8px;
+  font-size: 14.5px;
+  line-height: 1.6;
+  color: var(--muted);
+}
+
+/* ── footer ──────────────────────────────────────────────────────────── */
+.footer {
+  border-top: 1px solid var(--line);
+  padding: 26px 0 34px;
+  margin-top: clamp(40px, 7vh, 80px);
+}
+.footer__row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 20px;
+  flex-wrap: wrap;
+  font-size: 14px;
+  color: var(--faint);
+}
+.footer__brand { display: inline-flex; align-items: center; gap: 9px; font-weight: 600; color: var(--text); }
+.footer__brand img { border-radius: 6px; }
+.footer__meta { display: inline-flex; align-items: center; gap: 20px; }
+.footer__meta a { color: var(--muted); transition: color 0.2s var(--ease); }
+.footer__meta a:hover { color: var(--amaranth-bright); }
+
+/* ── entrance animation ──────────────────────────────────────────────── */
+.reveal {
+  opacity: 0;
+  transform: translateY(18px);
+  animation: rise 0.9s var(--ease) forwards;
+}
+@keyframes rise { to { opacity: 1; transform: none; } }
+.d1 { animation-delay: 0.05s; }
+.d2 { animation-delay: 0.16s; }
+.d3 { animation-delay: 0.27s; }
+.d4 { animation-delay: 0.38s; }
+.d5 { animation-delay: 0.52s; }
+
+/* scroll-in for later sections — content is visible by default; the hidden
+   start state only applies once JS is present (html.js), so no-JS visitors and
+   crawlers always see everything. */
+.in-view { transition: opacity 0.8s var(--ease), transform 0.8s var(--ease); }
+.js .in-view { opacity: 0; transform: translateY(24px); }
+.in-view.is-visible { opacity: 1; transform: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+  .reveal, .in-view { opacity: 1; transform: none; }
+}

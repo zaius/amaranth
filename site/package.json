@@ -1,0 +1,16 @@
+{
+  "name": "amaranth-site",
+  "type": "module",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Marketing site for Amaranth, the macOS menu-bar app for amaran lights",
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview",
+    "astro": "astro"
+  },
+  "dependencies": {
+    "astro": "^5.13.0"
+  }
+}

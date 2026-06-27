@@ -1,0 +1,75 @@
+name: Site
+
+# Publish the marketing site (site/, Astro) to GitHub Pages on pushes that touch
+# it, or on demand (`just publish-site` → workflow_dispatch).
+#
+# This is the SAME Pages site that serves the Sparkle appcast (appcast.xml, the
+# app's SUFeedURL), and a Pages deploy replaces the whole site — so the build
+# carries the live appcast forward (see `just pages`). A deploy that dropped it
+# would break auto-updates for everyone. Releases (release.yml) republish the
+# site too, with the freshly generated appcast.
+on:
+  push:
+    branches: [main]
+    paths:
+      - "site/**"
+      - ".github/workflows/site.yml"
+      - "justfile"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# One Pages deploy at a time; never cancel an in-flight one (a release deploy
+# could be mid-flight).
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # No npm cache: site/package-lock.json is intentionally gitignored, so
+      # there's no committed lockfile for setup-node to key the cache on.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install just
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf https://just.systems/install.sh \
+            | bash -s -- --to "$HOME/.local/bin"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      # Builds site/dist and bundles appcast.xml (fetched from the live Pages
+      # site, since no release artifact exists in this run).
+      - name: Build site + carry the appcast forward
+        run: just pages
+
+      # Self-heal: re-enables Pages (Actions source) if it was disabled. Cannot
+      # bootstrap a never-existed site — but Amaranth's was created during v1.0.0.
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+        with:
+          enablement: true
+
+      - name: Upload the site + appcast as a Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: site/dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

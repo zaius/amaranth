@@ -1,0 +1,231 @@
+---
+// A faithful, dependency-free mock of Amaranth's menu-bar popover — a macOS
+// menu-bar strip with the bulb glyph lit, and the dropdown hanging below it:
+// a power toggle, a brightness slider and a colour-temperature slider.
+const base = import.meta.env.BASE_URL;
+---
+
+<div class="mac" role="img" aria-label="Amaranth's menu-bar popover: a power toggle, a brightness slider at 78%, and a colour-temperature slider at 4300 K.">
+  <!-- the system menu bar -->
+  <div class="mac__bar">
+    <span class="mac__glyph">􀙥</span>
+    <span class="mac__glyph">􀊪</span>
+    <span class="mac__glyph mac__glyph--active" aria-hidden="true">
+      <img src={`${base}/icon.png`} alt="" width="16" height="16" />
+    </span>
+    <span class="mac__clock">9:41</span>
+  </div>
+
+  <!-- the dropdown -->
+  <div class="pop">
+    <span class="pop__beak" aria-hidden="true"></span>
+
+    <div class="pop__head">
+      <span class="pop__status"></span>
+      <span class="pop__name">amaran light</span>
+      <span class="pop__switch" data-on><span class="pop__nub"></span></span>
+    </div>
+
+    <div class="pop__row">
+      <div class="pop__meta">
+        <span>Brightness</span>
+        <span class="pop__val">78%</span>
+      </div>
+      <div class="pop__track">
+        <span class="pop__fill" style="width:78%"></span>
+        <span class="pop__knob" style="left:78%"></span>
+      </div>
+    </div>
+
+    <div class="pop__row">
+      <div class="pop__meta">
+        <span>Color Temp</span>
+        <span class="pop__val">4300 K</span>
+      </div>
+      <div class="pop__track pop__track--cct">
+        <span class="pop__knob" style="left:46%"></span>
+      </div>
+    </div>
+
+    <div class="pop__foot">
+      <span>Check for Updates…</span>
+      <span>Quit</span>
+    </div>
+  </div>
+</div>
+
+<style>
+  .mac {
+    width: min(440px, 92vw);
+    font-family:
+      -apple-system, BlinkMacSystemFont, "SF Pro Text", var(--font-sans);
+    user-select: none;
+  }
+
+  /* menu bar */
+  .mac__bar {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 16px;
+    height: 28px;
+    padding: 0 14px;
+    margin: 0 10px;
+    border-radius: 9px 9px 0 0;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid var(--line);
+    border-bottom: none;
+    backdrop-filter: blur(8px);
+    color: rgba(255, 255, 255, 0.6);
+    font-size: 13px;
+  }
+  .mac__glyph {
+    font-size: 13px;
+    line-height: 1;
+    opacity: 0.7;
+  }
+  .mac__glyph--active {
+    display: grid;
+    place-items: center;
+    width: 22px;
+    height: 22px;
+    border-radius: 6px;
+    background: rgba(229, 54, 91, 0.16);
+    box-shadow: 0 0 0 1px rgba(229, 54, 91, 0.35);
+    opacity: 1;
+  }
+  .mac__glyph--active img { border-radius: 4px; }
+  .mac__clock {
+    font-size: 12.5px;
+    color: rgba(255, 255, 255, 0.7);
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* popover */
+  .pop {
+    position: relative;
+    margin-top: 10px;
+    padding: 16px;
+    border-radius: 16px;
+    background: linear-gradient(180deg, rgba(38, 31, 34, 0.92), rgba(26, 21, 23, 0.94));
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    backdrop-filter: blur(30px) saturate(160%);
+    box-shadow:
+      0 1px 0 rgba(255, 255, 255, 0.06) inset,
+      0 30px 60px -24px rgba(0, 0, 0, 0.7);
+  }
+  .pop__beak {
+    position: absolute;
+    top: -7px;
+    right: 26px;
+    width: 13px;
+    height: 13px;
+    background: rgba(38, 31, 34, 0.95);
+    border-left: 1px solid rgba(255, 255, 255, 0.12);
+    border-top: 1px solid rgba(255, 255, 255, 0.12);
+    transform: rotate(45deg);
+    border-radius: 3px 0 0 0;
+  }
+
+  .pop__head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding-bottom: 14px;
+    margin-bottom: 14px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  }
+  .pop__status {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--amaranth-bright);
+    box-shadow: 0 0 9px 1px var(--glow);
+  }
+  .pop__name {
+    flex: 1;
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text);
+    letter-spacing: -0.01em;
+  }
+
+  /* power switch */
+  .pop__switch {
+    width: 44px;
+    height: 26px;
+    border-radius: 999px;
+    background: var(--accent-grad);
+    position: relative;
+    box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.3);
+    transition: background 0.3s var(--ease);
+  }
+  .pop__nub {
+    position: absolute;
+    top: 3px;
+    left: 21px;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: #fff;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+    transition: left 0.3s var(--ease);
+  }
+
+  /* sliders */
+  .pop__row { padding: 11px 0; }
+  .pop__meta {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 11px;
+    font-size: 13px;
+    color: var(--muted);
+  }
+  .pop__val {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--text);
+  }
+  .pop__track {
+    position: relative;
+    height: 6px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.1);
+  }
+  .pop__fill {
+    position: absolute;
+    inset: 0 auto 0 0;
+    border-radius: 999px;
+    background: var(--accent-grad);
+  }
+  .pop__track--cct {
+    background: linear-gradient(
+      90deg,
+      #ff9d57 0%,
+      #ffd9a0 28%,
+      #ffffff 52%,
+      #cfe2ff 76%,
+      #9cc4ff 100%
+    );
+  }
+  .pop__knob {
+    position: absolute;
+    top: 50%;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: #fff;
+    transform: translate(-50%, -50%);
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
+  }
+
+  .pop__foot {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 14px;
+    padding-top: 13px;
+    border-top: 1px solid rgba(255, 255, 255, 0.07);
+    font-size: 12.5px;
+    color: var(--faint);
+  }
+</style>

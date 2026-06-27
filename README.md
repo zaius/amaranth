@@ -79,10 +79,12 @@ amaranth/
   project.yml              # XcodeGen project definition (targets, deps, signing)
   Info.plist               # bundle info + Sparkle feed/key
   ExportOptions.plist      # Developer ID export config for releases
-  justfile                 # build / run / package / release recipes
+  justfile                 # build / run / package / release / site recipes
   Resources/AppIcon.icns   # app icon (regen with scripts/make-icon.swift)
   scripts/make-icon.swift  # renders the icon
+  site/                    # the marketing site (Astro) → GitHub Pages
   .github/workflows/release.yml
+  .github/workflows/site.yml # builds + deploys site/ to Pages on push
   Amaranth.entitlements    # App Group entitlement (shared container)
   Control/                 # control extension Info.plist + entitlements
   Sources/Amaranth/
@@ -103,9 +105,9 @@ amaranth/
 
 Releases are cut by pushing a version tag. GitHub Actions
 (`.github/workflows/release.yml`) then builds, signs, notarizes, staples,
-packages a DMG, attaches it to a GitHub Release, and publishes the Sparkle
-appcast to GitHub Pages. The same build/package steps are in `just package`,
-so you can produce a notarized DMG locally too.
+packages a DMG, attaches it to a GitHub Release, and publishes the marketing
+site + Sparkle appcast to GitHub Pages. The same build/package steps are in
+`just package`, so you can produce a notarized DMG locally too.
 
 ```sh
 just release 0.2.0     # bump project.yml, commit, tag v0.2.0, push → CI does the rest
@@ -124,8 +126,11 @@ git tag v0.2.0 && git push origin v0.2.0
 ### One‑time setup
 
 1. **GitHub Pages** — repo *Settings → Pages → Build and deployment → Source:
-   GitHub Actions*. The appcast deploys to `https://zaius.github.io/amaranth/appcast.xml`
-   (this is the `SUFeedURL` in `Info.plist` — update both if the repo moves).
+   GitHub Actions*. The site deploys to `https://zaius.github.io/amaranth/` and
+   the appcast to `https://zaius.github.io/amaranth/appcast.xml` (the latter is
+   the `SUFeedURL` in `Info.plist` — update both if the repo moves). Pages serves
+   **both** from one deploy; see the [Website](#website) section for how they
+   coexist.
 
 2. **Notary keychain profile** (for building/notarizing locally with `just package`):
    ```sh
@@ -162,6 +167,34 @@ git tag v0.2.0 && git push origin v0.2.0
    ```sh
    .build/SourcePackages/artifacts/sparkle/Sparkle/bin/generate_keys --account amaranth -x key.txt
    ```
+
+## Website
+
+The marketing site lives in `site/` — a small, dependency-light [Astro](https://astro.build)
+project that builds to static HTML and is served from GitHub Pages at
+[zaius.github.io/amaranth](https://zaius.github.io/amaranth/).
+
+```sh
+just site-dev      # Astro dev server → http://localhost:4321/amaranth/
+just site-build    # build static HTML into site/dist
+just pages         # build + bundle appcast.xml into site/dist (the Pages artifact)
+just publish-site  # trigger the Site workflow to deploy to Pages (needs gh)
+```
+
+It's published two ways, and both deploy the **same** combined artifact:
+
+- **`.github/workflows/site.yml`** — on any push to `main` that touches `site/`
+  (or via `just publish-site`).
+- **`.github/workflows/release.yml`** — every release republishes the site too.
+
+**Why they share an artifact:** Pages also hosts the Sparkle `appcast.xml` (the
+app's `SUFeedURL`), and a Pages deploy replaces the *entire* site. So a deploy
+that shipped only the website would wipe the appcast and break auto-updates for
+everyone. `just pages` prevents that — it assembles `site/dist` as **site +
+`appcast.xml`**: during a release it bundles the freshly generated appcast; for a
+site-only deploy it fetches the currently-published appcast and carries it
+forward (failing rather than ship a site without one). The site is built with
+`base: '/amaranth'`, so everything resolves under the project-Pages subpath.
 
 ## Known limitations / TODO
 

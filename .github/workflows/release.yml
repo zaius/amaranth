@@ -4,7 +4,7 @@ name: Release
 #   git tag v1.0.0 && git push origin v1.0.0
 # This builds, signs, notarizes, staples, packages a DMG (the same `just
 # package` you can run locally), creates a GitHub Release with the DMG, and
-# publishes the Sparkle appcast to GitHub Pages.
+# publishes the marketing site + Sparkle appcast to GitHub Pages.
 on:
   push:
     tags:
@@ -109,10 +109,17 @@ jobs:
           files: release/Amaranth-*.dmg
           fail_on_unmatched_files: true
 
-      - name: Upload the appcast as a Pages artifact
+      # Pages serves BOTH the marketing site and the appcast, and a deploy
+      # replaces the whole site — so assemble them together. `just pages` builds
+      # the Astro site and bundles THIS release's freshly generated appcast.xml
+      # (release/appcast/appcast.xml, just produced above) into site/dist.
+      - name: Build the site + bundle the fresh appcast for Pages
+        run: just pages
+
+      - name: Upload the site + appcast as a Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: release/appcast
+          path: site/dist
 
   deploy-pages:
     needs: build
@@ -128,6 +135,6 @@ jobs:
         uses: actions/configure-pages@v5
         with:
           enablement: true
-      - name: Deploy the appcast to GitHub Pages
+      - name: Deploy the site + appcast to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4

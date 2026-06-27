@@ -4,3 +4,10 @@ release/
 .DS_Store
 .env
 .claude/
+
+# Website (site/, Astro)
+site/node_modules/
+site/dist/
+site/.astro/
+.playwright-mcp/
+site/package-lock.json

@@ -224,3 +224,67 @@ release version:
     echo "Pushed v{{version}} — GitHub Actions will build, sign, notarize,"
     echo "create the release, and publish the appcast to Pages."
     echo "Watch it: https://github.com/{{github_repo}}/actions"
+
+# --- Website (GitHub Pages) -----------------------------------------------
+#
+# The marketing site lives in site/ (Astro) and is published to GitHub Pages at
+# https://zaius.github.io/amaranth/ — the SAME Pages site that serves the Sparkle
+# appcast (appcast.xml, the app's SUFeedURL). A Pages deploy replaces the *whole*
+# site, so every deploy must carry BOTH the built site AND appcast.xml, or
+# auto-updates break for everyone. The `pages` recipe assembles that combined
+# artifact and is the shared contract that .github/workflows/site.yml and
+# release.yml both upload.
+
+site_dir := "site"
+pages_dir := site_dir / "dist"
+# The live appcast, carried forward into site-only deploys. == SUFeedURL.
+appcast_url := "https://zaius.github.io/amaranth/appcast.xml"
+
+# Install the site's npm dependencies (package-lock.json is gitignored, so this
+# uses `npm install`, not `npm ci`)
+site-install:
+    cd {{site_dir}} && npm install
+
+# Run the Astro dev server → http://localhost:4321/amaranth/
+site-dev: site-install
+    cd {{site_dir}} && npm run dev
+
+# Build the static site into site/dist
+site-build: site-install
+    cd {{site_dir}} && npm run build
+
+# Assemble the full Pages artifact in site/dist: built site + appcast.xml. The
+# appcast comes from a fresh `just package` run when present
+# (release/appcast/appcast.xml); otherwise the currently-published one is fetched
+# and carried forward so a site-only deploy never drops it (it fails rather than
+# ship a site with no appcast).
+#
+# Assemble the full Pages artifact in site/dist (built site + appcast.xml)
+pages: site-build
+    #!/usr/bin/env bash
+    set -euo pipefail
+    dest="{{pages_dir}}/appcast.xml"
+    fresh="{{release_dir}}/appcast/appcast.xml"
+    if [ -f "$fresh" ]; then
+        echo "==> Bundling the freshly generated appcast"
+        cp "$fresh" "$dest"
+    else
+        echo "==> Carrying forward the live appcast ({{appcast_url}})"
+        curl -fsSL "{{appcast_url}}" -o "$dest"
+    fi
+    test -s "$dest"
+    echo "    Pages artifact ready → {{pages_dir}}/ (site + appcast.xml)"
+
+# Publish the site to GitHub Pages. Pages is sourced from GitHub Actions (not a
+# branch), so the deploy runs in CI: this triggers the Site workflow and tails
+# it. Requires the gh CLI. (Cutting a release republishes the site too.)
+#
+# Publish the site to GitHub Pages (triggers + tails the Site workflow)
+publish-site:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    gh workflow run site.yml --ref main
+    echo "==> Triggered the Site workflow; waiting for the run to start…"
+    sleep 4
+    run_id=$(gh run list --workflow=site.yml --limit 1 --json databaseId --jq '.[0].databaseId')
+    gh run watch "$run_id" --exit-status
